@@ -59,8 +59,9 @@ var NemPayment = {};
   };
 
   ns.unconfirmedTransactionCheck = function() {
-    var url = "http://bob.nem.ninja:7890"
-    url += "/account/unconfirmedTransactions?address="
+    var url = "http://"
+    url += ns.testnetFlag ? "bob.nem.ninja" : "go.nem.ninja"
+    url += ":7890/account/unconfirmedTransactions?address="
     url += ns.receiveAddress;
 
     fetch(url).then(function(response) {
@@ -90,8 +91,9 @@ var NemPayment = {};
   };
 
   ns.confirmedTransactionCheck = function() {
-    var url = "http://bob.nem.ninja:7890"
-    url += "/account/transfers/incoming?address="
+    var url = "http://"
+    url += ns.testnetFlag ? "bob.nem.ninja" : "go.nem.ninja"
+    url += ":7890/account/transfers/incoming?address="
     url += ns.receiveAddress;
 
     fetch(url).then(function(response) {

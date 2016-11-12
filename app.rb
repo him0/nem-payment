@@ -54,7 +54,9 @@ def tweet_pyament_infomation(params)
 end
 
 def validate_transaction(params)
-  url = "http://bob.nem.ninja:7890/account/transfers/incoming?address="
+  url = "http://"
+  url += TESTNET == "1" ? "bob.nem.ninja" : "go.nem.ninja"
+  url += ":7890/account/transfers/incoming?address="
   url += RECEIVE_ADDRESS
   transactions = JSON.parse(RestClient.get(url))["data"]
   target_tx = nil
