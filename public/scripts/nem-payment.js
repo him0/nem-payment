@@ -211,7 +211,7 @@ var NemPayment = {};
     amountParagraph.textContent = "Require Amount: " + ns.amount;
     infomationDiv.appendChild(amountParagraph);
 
-    magicMessageParagraph.textContent = "Message for Identify Your Transaction: " + ns.magicMessage;
+    magicMessageParagraph.textContent = "Message for Identifing Your Transaction: " + ns.magicMessage;
     infomationDiv.appendChild(magicMessageParagraph);
 
     if(ns.pending || ns.confirmed) {
