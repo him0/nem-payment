@@ -69,5 +69,6 @@ def validate_transaction(params)
   return false if target_tx == nil
   return false if target_tx["meta"] != params["meta"]
   return false if target_tx["transaction"] != params["transaction"]
+  return false if target_tx["transaction"]["amount"] != params["receiveAmount"]
   return true
 end
