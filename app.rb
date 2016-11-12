@@ -37,16 +37,18 @@ def tweet_pyament_infomation(params)
 
   transaction_validate_result = validate_transaction(params)
 
-  message  = "Payment Accpet! (" + Time.now.to_s + ")\n"
-  message  += "Amount: " + receive_amount.to_s + " xem\n"
+  message  = "Payment Accept! (" + Time.now.to_s + ")\n"
+  message += "Amount: " + receive_amount.to_s + " xem\n"
   message += "Validate result: " + transaction_validate_result.to_s + "\n"
 
   if(is_testnet)
     message += "Type: Testnet Transaction\n"
     message += "Tx: http://bob.nem.ninja:8765/#/transfer/" + tx_hash + "\n"
+    message += "http://nem-payment-testnet.herokuapp.com/" + "\n"
   else
     message += "Type: Livenet Transaction\n"
     message += "Tx: http://chain.nem.ninja/#/transfer/" + tx_hash + "\n"
+    message += "http://nem-payment.herokuapp.com/" + "\n"
   end
 
   puts message
