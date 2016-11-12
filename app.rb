@@ -37,7 +37,7 @@ def tweet_pyament_infomation(params)
 
   transaction_validate_result = validate_transaction(params)
 
-  message  = "Payment Accpet! (" + Time.now + ")\n"
+  message  = "Payment Accpet! (" + Time.now.to_s + ")\n"
   message  += "Amount: " + receive_amount.to_s + " xem\n"
   message += "Validate result: " + transaction_validate_result.to_s + "\n"
 
