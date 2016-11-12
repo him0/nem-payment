@@ -1,20 +1,23 @@
 var NemPayment = {};
 
 (function(ns) {
-  WATCH_INTERVAL_MSEC = 500;
+  WATCH_INTERVAL_MSEC = 1000;
 
-  ns.conformed = false;
+  ns.pending = false;
+  ns.confirmed = false;
 
   ns.paymentForm = {};
+  ns.qrcodeImg = {};
+  ns.paymentInfomation = {};
+
   ns.receiveAddress = "";
   ns.amount = 0;
-
   ns.testnetFlag = false;
   ns.callback = "";
   ns.optionDatasets = "";
 
   ns.magicMessage = "";
-  ns.timeStamp = 0;
+  ns.startTimeStamp = 0;
 
   ns.txHash = "";
   ns.senderPublicKey = "";
@@ -25,28 +28,39 @@ var NemPayment = {};
     if(!ns.paymentForm) {
       console.log("There is not #nem-payment on document.")
     };
+
     ns.receiveAddress = ns.paymentForm.getAttribute("address");
     ns.amount = Number(ns.paymentForm.getAttribute("amount"));
     if(ns.paymentForm.getAttribute("test") == "true") {
       ns.testnetFlag = true;
     }
     ns.callback = ns.paymentForm.getAttribute("callback");
+    ns.optionDatasets = ns.paymentForm.getAttribute("data");
+
     ns.magicMessage = ns.randomstr(5);
-    ns.timeStamp = ns.getUnixTime();
+    ns.startTimeStamp = ns.getUnixTime();
 
-    var qrcodeImg = ns.makeQrCodeImage();
-    ns.paymentForm.appendChild(qrcodeImg);
+    ns.qrcodeImg = ns.makeQrcodeImage();
+    ns.paymentForm.appendChild(ns.qrcodeImg);
 
-    var paymentInfomation = ns.makePaymentInfomation(false);
-    ns.paymentForm.appendChild(paymentInfomation);
+    ns.paymentInfomation = ns.makePaymentInfomation();
+    ns.paymentForm.appendChild(ns.paymentInfomation);
 
     ns.setTransactionCheck();
   });
 
   ns.setTransactionCheck = function() {
-    var hexMagicMessage = ns.textToHex(ns.magicMessage);
+    if(!ns.pending && !ns.confirmed) { ns.unconfirmedTransactionCheck(); }
+    ns.confirmedTransactionCheck();
 
-    var url = "http://bob.nem.ninja:7890/account/transfers/incoming?address="
+    if(!ns.confirmed) {
+      setTimeout(ns.setTransactionCheck, WATCH_INTERVAL_MSEC);
+    }
+  };
+
+  ns.unconfirmedTransactionCheck = function() {
+    var url = "http://bob.nem.ninja:7890"
+    url += "/account/unconfirmedTransactions?address="
     url += ns.receiveAddress;
 
     fetch(url).then(function(response) {
@@ -57,46 +71,73 @@ var NemPayment = {};
       Object.keys(transactions).forEach(function (key) {
         tx = transactions[key];
 
-        if(ns.conformed) { return; }
+        if(ns.pending) { return; }
+        if(ns.confirmed) { return; }
 
-        var txTimeStamp = tx["transaction"]["timeStamp"];
-        if(txTimeStamp > ns.timeStamp) { return; }
+        ns.matchTransaction(tx, function(){
+          console.log("pending");
+          ns.pending = true;
 
-        var receiveAmount = Number(tx["transaction"]["amount"]) / 1000000;
-        if(receiveAmount < ns.amount) { return; }
-
-        if(!tx["transaction"]["message"]) { return; }
-        var txHexMessage = tx["transaction"]["message"]["payload"];
-
-        if(txHexMessage == hexMagicMessage) {
-          ns.conformed = true;
           ns.senderPublicKey = tx["transaction"]["signer"];
-          ns.txHash = tx["meta"]["hash"]["data"];
-          ns.receiveAmount = receiveAmount;
-          ns.paymentConfored(tx);
-        }
+          ns.receiveAmount = Number(tx["transaction"]["amount"]) / 1000000;
+
+          ns.paymentForm.textContent = null;
+          ns.paymentInfomation = ns.makePaymentInfomation();
+          ns.paymentForm.appendChild(ns.paymentInfomation);
+        });
       });
     });
+  };
 
-    if(!ns.conformed) {
-      setTimeout(ns.setTransactionCheck, WATCH_INTERVAL_MSEC);
+  ns.confirmedTransactionCheck = function() {
+    var url = "http://bob.nem.ninja:7890"
+    url += "/account/transfers/incoming?address="
+    url += ns.receiveAddress;
+
+    fetch(url).then(function(response) {
+      return response.json();
+    }).then(function(json) {
+      var transactions = json["data"];
+
+      Object.keys(transactions).forEach(function (key) {
+        tx = transactions[key];
+
+        if(ns.confirmed) { return; }
+
+        ns.matchTransaction(tx, function(){
+          console.log("confirmed");
+          ns.confirmed = true;
+
+          ns.txHash = tx["meta"]["hash"]["data"];
+          ns.senderPublicKey = tx["transaction"]["signer"];
+          ns.receiveAmount = Number(tx["transaction"]["amount"]) / 1000000;
+
+          ns.paymentForm.textContent = null;
+          ns.paymentInfomation = ns.makePaymentInfomation();
+          ns.paymentForm.appendChild(ns.paymentInfomation);
+          ns.excuteCallback(tx);
+        });
+      });
+    });
+  };
+
+  ns.matchTransaction = function(tx, callback) {
+    var txTimeStamp = tx["transaction"]["timeStamp"];
+    if(txTimeStamp > ns.startTimeStamp) { return; }
+
+    var receiveAmount = Number(tx["transaction"]["amount"]) / 1000000;
+    if(receiveAmount < ns.amount) { return; }
+
+    if(!tx["transaction"]["message"]) { return; }
+
+    var txHexMessage = tx["transaction"]["message"]["payload"];
+    var hexMagicMessage = ns.textToHex(ns.magicMessage);
+    if(txHexMessage == hexMagicMessage) {
+      callback();
     }
   };
 
-  ns.paymentConfored = function(tx) {
-    ns.paymentForm.textContent = null;
-
-    var conformedMessagePragraph = document.createElement('p');
-    conformedMessagePragraph.textContent = "Conformed!";
-    ns.paymentForm.appendChild(conformedMessagePragraph);
-
-    var paymentInfomation = ns.makePaymentInfomation(true);
-    ns.paymentForm.appendChild(paymentInfomation);
-
-    ns.doCallback(tx);
-  }
-
-  ns.doCallback = function(tx){
+  ns.excuteCallback = function(tx){
     var url = ns.callback;
     data = {
       "transaction": tx["transaction"],
@@ -105,7 +146,7 @@ var NemPayment = {};
       "receiveAddress": ns.receiveAddress,
       "receiveAmount": ns.receiveAmount,
       "magicMessage": ns.magicMessage,
-      "startTimeStamp": ns.timeStamp,
+      "startTimeStamp": ns.startTimeStamp,
       "optionDatasets": ns.optionDatasets
     }
 
@@ -117,13 +158,13 @@ var NemPayment = {};
     console.log(data);
   }
 
-  ns.makeQrCodeImage = function() {
+  ns.makeQrcodeImage = function() {
     var version = 2;  // 1 - testnet / 2 - livenet
     if(ns.testnetFlag) { version = 1; }
 
     var microAmount = ns.amount * 1000000;
 
-    var qrCodeData = JSON.stringify({
+    var qrcodeData = JSON.stringify({
       "v": version,
       "type": 2,
       "data": {
@@ -139,39 +180,44 @@ var NemPayment = {};
     var qrcodeImg = document.createElement('img');
     var size = 256;
     var qrcodeUri = "http://chart.apis.google.com/chart?cht=qr&chs="
-    qrcodeUri += size + "x" + size + "&chl=" + qrCodeData;
+    qrcodeUri += size + "x" + size + "&chl=" + qrcodeData;
     qrcodeImg.src = qrcodeUri
     return(qrcodeImg)
   }
 
-  ns.makePaymentInfomation = function(conformed) {
-    if (conformed == null) {
-        conformed = false;
-    }
+  ns.makePaymentInfomation = function() {
     var infomationDiv = document.createElement('div');
 
+    var statusParagraph = document.createElement('p');
     var addressParagraph = document.createElement('p');
     var amountParagraph = document.createElement('p');
     var magicMessageParagraph = document.createElement('p');
     var txHashParagraph = document.createElement('p');
     var senderPublicKeyPragraph = document.createElement('p');
 
+    var statusText = "Status: accepting";
+    if(ns.pending) { statusText = "Status: Pending"; }
+    if(ns.confirmed) { statusText = "Status: Confirmed"; }
+    statusParagraph.textContent = statusText;
+    infomationDiv.appendChild(statusParagraph);
+
     var addressText = "Reception Address: " + ns.receiveAddress;
-    if(ns.testnetFlag) {
-      addressText += " (testnet)";
-    }
-
+    if(ns.testnetFlag) { addressText += " (testnet)"; }
     addressParagraph.textContent = addressText;
-    amountParagraph.textContent = "Require Amount: " + ns.amount;
-    magicMessageParagraph.textContent = "Magic Message: " + ns.magicMessage;
-    txHashParagraph.textContent = "Tx Hash: " + ns.txHash;
-    senderPublicKeyPragraph.textContent = "Sender PublicKey: " + ns.senderPublicKey;
-
     infomationDiv.appendChild(addressParagraph);
+
+    amountParagraph.textContent = "Require Amount: " + ns.amount;
     infomationDiv.appendChild(amountParagraph);
+
+    magicMessageParagraph.textContent = "Magic Message: " + ns.magicMessage;
     infomationDiv.appendChild(magicMessageParagraph);
-    if(conformed) {
+
+    if(ns.pending || ns.confirmed) {
+      txHashParagraph.textContent = "Tx Hash: " + ns.txHash;
       infomationDiv.appendChild(txHashParagraph);
+
+      var senderPublicKey = "Sender PublicKey: " + ns.senderPublicKey;
+      senderPublicKeyPragraph.textContent = senderPublicKey;
       infomationDiv.appendChild(senderPublicKeyPragraph);
     }
 
