@@ -7,6 +7,7 @@ require 'rest-client'
 
 RECEIVE_ADDRESS = ENV["RECEIVE_ADDRESS"]
 AMOUNT = ENV["AMOUNT"]
+TESTNET = ENV["TESTNET"] # 1: testnet, 0: livenet
 
 CLIENT = Twitter::REST::Client.new do |config|
   config.consumer_key        = ENV["CONSUMER_KEY"]
@@ -18,6 +19,8 @@ end
 get '/' do
   @receive_address = RECEIVE_ADDRESS
   @amount = AMOUNT
+  @testnet = TESTNET == "1" ? true : false
+  puts @testnet
   erb :index
 end
 
