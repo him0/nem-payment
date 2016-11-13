@@ -69,6 +69,7 @@ def validate_transaction(params)
   return false if target_tx == nil
   return false if target_tx["meta"] != params["meta"]
   return false if target_tx["transaction"] != params["transaction"]
-  return false if target_tx["transaction"]["amount"] != params["receiveAmount"]
+  amount = target_tx["transaction"]["amount"].to_f / 1000000
+  return false if amount != params["receiveAmount"]
   return true
 end
